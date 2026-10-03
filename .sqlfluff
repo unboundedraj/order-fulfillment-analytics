@@ -1,0 +1,36 @@
+[sqlfluff]
+dialect = duckdb
+templater = jinja
+max_line_length = 120
+# Keep the rule set to things that catch real problems or enforce a consistent style.
+rules = core
+exclude_rules = LT05, ST06, AM04, RF04, LT14, CV11, ST05, AL09, AM03, RF02
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+load_macros_from_path = dbt/macros
+
+[sqlfluff:templater:jinja:context]
+incremental_lookback_days = 7
+
+[sqlfluff:indentation]
+tab_space_size = 4
+allow_implicit_indents = True
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = lower
+
+# Column aliases are aligned within a select clause for readability.
+[sqlfluff:layout:type:alias_expression]
+spacing_before = align
+align_within = select_clause
+align_scope = bracketed
