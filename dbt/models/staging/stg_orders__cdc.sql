@@ -25,7 +25,7 @@ typed as (
         closed_at,
         estimated_delivery_date,
         updated_at,
-        {{ extract_date_from_path('_source_file') }}        as extract_date,
+        {{ extract_date_from_path('_source_file') }} as extract_date,
         _source_file,
         _loaded_at
     from source
@@ -39,7 +39,7 @@ deduplicated as (
         row_number() over (
             partition by order_id, order_status, updated_at
             order by _loaded_at, _source_file
-        ) as _dup_rank,
+        )                                                               as _dup_rank,
         count(*) over (partition by order_id, order_status, updated_at) as _copies_received
     from typed
 
@@ -53,7 +53,7 @@ select
     courier,
     payment_method,
     order_status,
-    {{ status_precedence('order_status') }}                  as status_precedence,
+    {{ status_precedence('order_status') }}                                    as status_precedence,
     purchase_at,
     approved_at,
     shipped_at,
@@ -62,8 +62,8 @@ select
     estimated_delivery_date,
     updated_at,
     extract_date,
-    extract_date > cast(updated_at as date)                  as is_late_arrival,
-    _copies_received - 1                                     as duplicate_copies_dropped,
+    extract_date > cast(updated_at as date)                                    as is_late_arrival,
+    _copies_received - 1                                                       as duplicate_copies_dropped,
     _source_file,
     _loaded_at
 from deduplicated

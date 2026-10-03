@@ -18,17 +18,17 @@ deduplicated as (
     select *
     from source
     qualify row_number() over (
-        partition by customer_id, updated_at order by _loaded_at desc
-    ) = 1
+            partition by customer_id, updated_at order by _loaded_at desc
+        ) = 1
 
 )
 
 select
     d.customer_id,
-    d.state                                             as state_raw,
-    a.state                                             as state,
-    a.state is not null                                 as is_state_mapped,
-    nullif(trim(d.pincode), '')                         as pincode,
+    d.state                     as state_raw,
+    a.state                     as state,
+    a.state is not null         as is_state_mapped,
+    nullif(trim(d.pincode), '') as pincode,
     d.signup_at,
     d.updated_at,
     d._source_file,

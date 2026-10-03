@@ -9,18 +9,18 @@ with versions as (
 )
 
 select
-    md5(customer_id || '|' || cast(updated_at as varchar))                    as customer_sk,
+    md5(customer_id || '|' || cast(updated_at as varchar))           as customer_sk,
     customer_id,
     state,
     state_raw,
     pincode,
     signup_at,
-    updated_at                                                                as valid_from,
+    updated_at                                                       as valid_from,
     coalesce(
         lead(updated_at) over (partition by customer_id order by updated_at),
         timestamp '9999-12-31 00:00:00'
-    )                                                                         as valid_to,
+    )                                                                as valid_to,
     lead(updated_at) over (partition by customer_id order by updated_at) is null
-                                                                              as is_current,
-    row_number() over (partition by customer_id order by updated_at)          as version_number
+        as is_current,
+    row_number() over (partition by customer_id order by updated_at) as version_number
 from versions

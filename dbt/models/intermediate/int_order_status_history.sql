@@ -18,11 +18,11 @@ select
     order_version_id,
     order_id,
     order_status,
-    updated_at                                                       as valid_from,
-    lead(updated_at) over w                                          as valid_to,
-    lead(updated_at) over w is null                                  as is_current,
-    lag(order_status) over w                                         as previous_status,
-    {{ hours_between('updated_at', 'lead(updated_at) over w') }}    as hours_in_status,
-    row_number() over w                                              as status_sequence
+    updated_at                                                   as valid_from,
+    lead(updated_at) over w                                      as valid_to,
+    lead(updated_at) over w is null                              as is_current,
+    lag(order_status) over w                                     as previous_status,
+    {{ hours_between('updated_at', 'lead(updated_at) over w') }} as hours_in_status,
+    row_number() over w                                          as status_sequence
 from versions
 window w as (partition by order_id order by updated_at, status_precedence)

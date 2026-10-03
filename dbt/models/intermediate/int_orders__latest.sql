@@ -5,8 +5,8 @@ with versions as (
 
     select
         *,
-        count(*) over (partition by order_id)               as version_count,
-        max(_loaded_at) over (partition by order_id)        as last_loaded_at,
+        count(*) over (partition by order_id)                 as version_count,
+        max(_loaded_at) over (partition by order_id)          as last_loaded_at,
         bool_or(is_late_arrival) over (partition by order_id) as had_late_arrival
     from {{ ref('stg_orders__cdc') }}
 
@@ -15,6 +15,6 @@ with versions as (
 select *
 from versions
 qualify row_number() over (
-    partition by order_id
-    order by updated_at desc, status_precedence desc
-) = 1
+        partition by order_id
+        order by updated_at desc, status_precedence desc
+    ) = 1
