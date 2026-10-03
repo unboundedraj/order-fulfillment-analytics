@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: mart_fulfillment_daily
+    description: Daily fulfilment KPIs by customer state (grain order_date x state).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [order_date, customer_state]
+    columns:
+      - name: on_time_rate
+        data_tests:
+          - value_between:
+              arguments: {min_value: 0, max_value: 1}
+
+  - name: mart_state_scorecard
+    description: State-level speed / reliability scorecard benchmarked against the national average.
+    columns:
+      - name: state
+        data_tests: [unique, not_null]
+      - name: sla_health
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [healthy, at risk, critical]
+
+  - name: mart_courier_performance
+    description: Courier SLA performance by month, destination region and sale period.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [order_month, courier, customer_region, is_sale_period]
+
+  - name: mart_stage_bottlenecks
+    description: Time spent per lifecycle stage by state and the stage driving excess delay.
+    columns:
+      - name: state
+        data_tests: [unique, not_null]
+      - name: bottleneck_stage
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [approval, warehouse processing, last-mile transit]
+
+  - name: mart_sale_event_impact
+    description: Volume uplift and service degradation for each sale event vs its non-sale baseline.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [sale_event, start_date]
+
+  - name: mart_order_funnel
+    description: Monthly placed -> approved -> shipped -> delivered -> kept funnel.
+    columns:
+      - name: order_month
+        data_tests: [unique, not_null]
+
+  - name: mart_data_quality_daily
+    description: Feed observability - duplicates, late arrivals, anomalies and volume z-score per extract day.
+    columns:
+      - name: extract_date
+        data_tests: [unique, not_null]
+      - name: late_arrival_rate
+        data_tests:
+          - value_between:
+              arguments: {min_value: 0, max_value: 0.10}
+              config:
+                severity: warn
+
+exposures:
+  - name: fulfillment_dashboard
+    label: Fulfillment & Delivery Dashboard
+    type: dashboard
+    maturity: medium
+    url: http://localhost:8501
+    description: Streamlit dashboard (dashboard/app.py) used by operations to monitor SLAs.
+    depends_on:
+      - ref('mart_fulfillment_daily')
+      - ref('mart_state_scorecard')
+      - ref('mart_courier_performance')
+      - ref('mart_stage_bottlenecks')
+      - ref('mart_sale_event_impact')
+      - ref('mart_order_funnel')
+      - ref('mart_data_quality_daily')
+    owner:
+      name: Data Engineering
