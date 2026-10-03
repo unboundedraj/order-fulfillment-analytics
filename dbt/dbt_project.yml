@@ -1,0 +1,61 @@
+name: fulfillment
+version: "1.0.0"
+config-version: 2
+profile: fulfillment
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Re-process orders updated within this many days of the newest fact row on
+  # incremental runs. Covers late-arriving CDC rows (the source delivers up to 3 days late).
+  incremental_lookback_days: 7
+  # Business SLA for a "slow" approval, in hours.
+  approval_sla_hours: 24
+
+models:
+  fulfillment:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: table
+    marts:
+      core:
+        +schema: core
+        +materialized: table
+      kpi:
+        +schema: kpi
+        +materialized: table
+
+seeds:
+  fulfillment:
+    +schema: reference
+    ref_states:
+      +column_types:
+        state: varchar
+        state_code: varchar
+        region: varchar
+        remoteness_tier: integer
+    state_aliases:
+      +column_types:
+        alias: varchar
+        state: varchar
+    sale_calendar:
+      +column_types:
+        sale_event: varchar
+        start_date: date
+        end_date: date
+
+tests:
+  fulfillment:
+    +severity: error

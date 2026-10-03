@@ -1,0 +1,12 @@
+fulfillment:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Set by the `fulfillment` CLI / Dagster; defaults to the repo's data folder.
+      path: "{{ env_var('FULFILLMENT_WAREHOUSE', '../data/warehouse.duckdb') }}"
+      threads: 4
+    ci:
+      type: duckdb
+      path: "{{ env_var('FULFILLMENT_WAREHOUSE', '../data/ci_warehouse.duckdb') }}"
+      threads: 4
