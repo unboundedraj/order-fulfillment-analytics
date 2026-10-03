@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff sqlfluff
+      - run: ruff check src tests dashboard
+      - run: ruff format --check src tests dashboard
+      - run: sqlfluff lint dbt/models
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[orchestration,dev]"
+      - name: Unit + end-to-end tests (dbt build, incremental == full refresh, Dagster defs)
+        run: pytest
+
+  pipeline:
+    # Full-size run: ~190k orders / 760k CDC rows through every layer, then publish dbt docs.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e .
+      - run: python -m fulfillment run
+      - run: python -m fulfillment status
+      - name: Source freshness report
+        run: cd dbt && dbt source freshness --profiles-dir .
+      - name: Build dbt docs
+        run: cd dbt && dbt docs generate --profiles-dir .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            dbt/target/index.html
+            dbt/target/manifest.json
+            dbt/target/catalog.json
+            dbt/target/run_results.json
