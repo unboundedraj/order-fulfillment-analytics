@@ -1,0 +1,203 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Calendar dimension with Indian financial year and sale-event flags.
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+      - name: date_day
+        data_tests: [unique, not_null]
+
+  - name: dim_geography
+    description: States and union territories with region and remoteness tier.
+    columns:
+      - name: state
+        data_tests: [unique, not_null]
+      - name: region
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [North, South, East, West, Central, North-East]
+
+  - name: dim_customers
+    description: SCD type 2 customer dimension (one row per customer address version).
+    columns:
+      - name: customer_sk
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests: [not_null]
+    data_tests:
+      - one_current_row_per_key:
+          arguments:
+            key: customer_id
+
+  - name: dim_products
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+
+  - name: dim_hubs
+    columns:
+      - name: hub_id
+        data_tests: [unique, not_null]
+
+  - name: fct_orders
+    description: >
+      Order-grain fact table: current status, lifecycle timestamps, stage durations, SLA
+      outcomes, basket and payment totals. Incremental (delete+insert on order_id) driven by
+      source load time, so late-arriving CDC rows always update their order. The model
+      contract is enforced: column names and types cannot change silently.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_id
+        data_type: varchar
+        constraints:
+          - type: not_null
+        data_tests: [unique]
+      - name: customer_sk
+        data_type: varchar
+        description: Customer version valid at purchase time.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_sk
+      - name: customer_id
+        data_type: varchar
+      - name: order_date_key
+        data_type: integer
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: order_date
+        data_type: date
+      - name: customer_state
+        data_type: varchar
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_geography')
+                field: state
+      - name: customer_region
+        data_type: varchar
+      - name: remoteness_tier
+        data_type: integer
+      - name: hub_id
+        data_type: varchar
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_hubs')
+                field: hub_id
+      - name: hub_region
+        data_type: varchar
+      - name: courier
+        data_type: varchar
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('ref_couriers')
+                field: courier
+      - name: payment_method
+        data_type: varchar
+      - name: sale_event
+        data_type: varchar
+      - name: current_status
+        data_type: varchar
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [created, approved, shipped, delivered, cancelled, rto, returned]
+      - name: purchase_at
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: approved_at
+        data_type: timestamp
+      - name: shipped_at
+        data_type: timestamp
+      - name: delivered_at
+        data_type: timestamp
+      - name: closed_at
+        data_type: timestamp
+      - name: estimated_delivery_date
+        data_type: date
+      - name: is_delivered
+        data_type: boolean
+      - name: is_cancelled
+        data_type: boolean
+      - name: is_returned
+        data_type: boolean
+      - name: is_rto
+        data_type: boolean
+      - name: is_open
+        data_type: boolean
+      - name: is_cross_region
+        data_type: boolean
+      - name: is_late
+        data_type: boolean
+        description: Delivered after the promised date shown at checkout. Null if not delivered.
+      - name: days_late
+        data_type: bigint
+      - name: is_open_and_overdue
+        data_type: boolean
+      - name: breached_approval_sla
+        data_type: boolean
+      - name: has_timestamp_anomaly
+        data_type: boolean
+        description: delivered_at earlier than shipped_at in the source; excluded from durations.
+      - name: approval_hours
+        data_type: double
+      - name: processing_hours
+        data_type: double
+      - name: transit_days
+        data_type: double
+      - name: delivery_days
+        data_type: double
+        data_tests:
+          - value_between:
+              arguments:
+                min_value: 0
+                max_value: 90
+      - name: item_count
+        data_type: bigint
+      - name: units
+        data_type: bigint
+      - name: primary_category
+        data_type: varchar
+      - name: gross_merchandise_value
+        data_type: decimal(14,2)
+      - name: amount_charged
+        data_type: decimal(14,2)
+      - name: amount_refunded
+        data_type: decimal(14,2)
+      - name: net_revenue
+        data_type: decimal(14,2)
+      - name: version_count
+        data_type: bigint
+      - name: had_late_arrival
+        data_type: boolean
+      - name: source_last_loaded_at
+        data_type: timestamp
+
+  - name: fct_order_items
+    columns:
+      - name: order_item_id
+        data_tests: [unique, not_null]
+      - name: product_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_products')
+                field: product_id
+
+  - name: fct_order_status_history
+    columns:
+      - name: order_version_id
+        data_tests: [unique, not_null]
