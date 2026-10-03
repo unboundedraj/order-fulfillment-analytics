@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: stg_orders__cdc
+    description: >
+      Distinct order versions from the CDC feed. Exact duplicates are dropped
+      (`duplicate_copies_dropped` keeps the count), and rows that arrived in a later extract
+      than the change are flagged with `is_late_arrival`.
+    columns:
+      - name: order_version_id
+        description: md5(order_id, order_status, updated_at). Unique per version.
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests: [not_null]
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [created, approved, shipped, delivered, cancelled, rto, returned]
+      - name: status_precedence
+        description: Lifecycle rank used to break timestamp ties (created=1 ... returned=6).
+      - name: is_late_arrival
+        description: True when the row landed in an extract dated after the change itself.
+      - name: purchase_at
+        data_tests: [not_null]
+
+  - name: stg_customers__cdc
+    description: Customer address versions with the free-text state mapped to a canonical state.
+    columns:
+      - name: customer_id
+        data_tests: [not_null]
+      - name: state
+        description: Canonical state name via the `state_aliases` seed.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              arguments:
+                to: ref('ref_states')
+                field: state
+      - name: state_raw
+        description: The state exactly as the source system sent it.
+
+  - name: stg_order_items
+    columns:
+      - name: order_item_id
+        data_tests: [unique, not_null]
+      - name: quantity
+        data_tests:
+          - positive_value
+      - name: unit_price
+        data_tests:
+          - positive_value
+
+  - name: stg_payments
+    columns:
+      - name: payment_id
+        data_tests: [unique, not_null]
+      - name: payment_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [charge, refund]
+      - name: payment_method
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [UPI, COD, Credit Card, Debit Card, Wallet, Net Banking]
+
+  - name: stg_products
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+      - name: seller_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_sellers')
+                field: seller_id
+
+  - name: stg_sellers
+    columns:
+      - name: seller_id
+        data_tests: [unique, not_null]
+      - name: hub_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('ref_hubs')
+                field: hub_id
