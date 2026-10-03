@@ -33,6 +33,7 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+markers = ["e2e: end-to-end tests that run dbt builds (slower)"]
 
 [tool.ruff]
 line-length = 100
