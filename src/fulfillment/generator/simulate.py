@@ -147,7 +147,8 @@ def _catalogue(cfg, rng, n_products=2500, n_sellers=180):
 
 
 # ----------------------------------------------------------------------- simulation
-def simulate(cfg: SimulationConfig = SimulationConfig()) -> SimulationResult:
+def simulate(cfg: SimulationConfig | None = None) -> SimulationResult:
+    cfg = cfg or SimulationConfig()
     rng = np.random.default_rng(cfg.seed)
     horizon_end = pd.Timestamp(cfg.end) + pd.Timedelta(days=1)  # exclusive
 
