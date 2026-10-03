@@ -1,0 +1,149 @@
+version: 2
+
+models:
+  - name: int_orders__latest
+    description: >
+      The current version of each order: latest by event time (`updated_at`), with
+      status precedence breaking ties. Late-arriving older versions cannot overwrite newer ones.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+
+  - name: int_order_status_history
+    description: SCD2 status history of each order, derived from the CDC log.
+    columns:
+      - name: order_version_id
+        data_tests: [unique, not_null]
+      - name: hours_in_status
+        data_tests:
+          - value_between:
+              arguments:
+                min_value: 0
+
+  - name: int_customers__scd2
+    description: SCD2 customer address history with half-open validity intervals.
+    columns:
+      - name: customer_sk
+        data_tests: [unique, not_null]
+    data_tests:
+      - scd2_no_overlaps:
+          arguments:
+            key: customer_id
+            valid_from: valid_from
+            valid_to: valid_to
+
+  - name: int_order_items__by_order
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+
+  - name: int_payments__by_order
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+
+  - name: int_orders__lifecycle
+    description: >
+      One row per order with lifecycle timestamps, stage durations, SLA outcomes and the
+      customer's location at purchase time.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: customer_sk
+        description: Customer version valid at purchase time (point-in-time join).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('int_customers__scd2')
+                field: customer_sk
+      - name: approved_at
+        data_tests:
+          - timestamps_in_order:
+              arguments:
+                after: purchase_at
+      - name: shipped_at
+        data_tests:
+          - timestamps_in_order:
+              arguments:
+                after: approved_at
+      - name: delivered_at
+        description: >
+          May precede shipped_at for a handful of source records (courier clock skew).
+          Those rows are flagged via `has_timestamp_anomaly` and excluded from duration KPIs.
+        data_tests:
+          - timestamps_in_order:
+              arguments:
+                after: shipped_at
+              config:
+                where: "not has_timestamp_anomaly"
+      - name: approval_hours
+        data_tests:
+          - value_between:
+              arguments:
+                min_value: 0
+                max_value: 720
+
+unit_tests:
+  - name: latest_version_is_chosen_by_event_time_not_arrival_order
+    description: >
+      An older 'approved' version arrives late (loaded after the 'shipped' version).
+      The order must still read as shipped.
+    model: int_orders__latest
+    given:
+      - input: ref('stg_orders__cdc')
+        rows:
+          - {order_id: A, order_status: shipped, status_precedence: 3, updated_at: "2024-01-03 10:00:00", _loaded_at: "2024-01-04 01:00:00", is_late_arrival: false}
+          - {order_id: A, order_status: approved, status_precedence: 2, updated_at: "2024-01-02 09:00:00", _loaded_at: "2024-01-05 01:00:00", is_late_arrival: true}
+          - {order_id: B, order_status: delivered, status_precedence: 4, updated_at: "2024-01-09 12:00:00", _loaded_at: "2024-01-10 01:00:00", is_late_arrival: false}
+          - {order_id: B, order_status: returned, status_precedence: 6, updated_at: "2024-01-09 12:00:00", _loaded_at: "2024-01-10 01:00:00", is_late_arrival: false}
+    expect:
+      rows:
+        - {order_id: A, order_status: shipped, version_count: 2, had_late_arrival: true, last_loaded_at: "2024-01-05 01:00:00"}
+        - {order_id: B, order_status: returned, version_count: 2, had_late_arrival: false, last_loaded_at: "2024-01-10 01:00:00"}
+
+  - name: lifecycle_uses_point_in_time_customer_state_and_flags_sla
+    description: >
+      Customer C1 moved from Kerala to Delhi *after* order O1 was placed, so O1 must be
+      attributed to Kerala. O1 was delivered 2 days after the promise. O2 has a delivery
+      timestamp earlier than its ship timestamp and must be flagged and excluded from durations.
+    model: int_orders__lifecycle
+    given:
+      - input: ref('int_orders__latest')
+        rows:
+          - {order_id: O1, customer_id: C1, hub_id: HUB-BLR, courier: SwiftShip, payment_method: UPI, order_status: delivered,
+             purchase_at: "2024-03-01 10:00:00", approved_at: "2024-03-01 16:00:00", shipped_at: "2024-03-02 10:00:00",
+             delivered_at: "2024-03-08 12:00:00", estimated_delivery_date: "2024-03-06", updated_at: "2024-03-08 12:00:00",
+             version_count: 4, had_late_arrival: false, last_loaded_at: "2024-03-09 00:00:00"}
+          - {order_id: O2, customer_id: C1, hub_id: HUB-BLR, courier: SwiftShip, payment_method: COD, order_status: delivered,
+             purchase_at: "2024-06-01 10:00:00", approved_at: "2024-06-02 10:00:00", shipped_at: "2024-06-03 10:00:00",
+             delivered_at: "2024-06-03 05:00:00", estimated_delivery_date: "2024-06-08", updated_at: "2024-06-07 10:00:00",
+             version_count: 4, had_late_arrival: false, last_loaded_at: "2024-06-08 00:00:00"}
+      - input: ref('int_customers__scd2')
+        rows:
+          - {customer_sk: k1, customer_id: C1, state: Kerala, valid_from: "2023-01-01 00:00:00", valid_to: "2024-04-01 00:00:00"}
+          - {customer_sk: k2, customer_id: C1, state: Delhi, valid_from: "2024-04-01 00:00:00", valid_to: "9999-12-31 00:00:00"}
+      - input: ref('ref_states')
+        rows:
+          - {state: Kerala, state_code: KL, region: South, remoteness_tier: 2}
+          - {state: Delhi, state_code: DL, region: North, remoteness_tier: 1}
+      - input: ref('ref_hubs')
+        rows:
+          - {hub_id: HUB-BLR, hub_state: Karnataka, hub_region: South}
+      - input: ref('sale_calendar')
+        rows:
+          - {sale_event: Test Sale, start_date: "2024-06-01", end_date: "2024-06-02"}
+      - input: ref('stg_orders__cdc')
+        rows:
+          - {updated_at: "2024-06-10 00:00:00"}
+      - input: source('raw', 'payments')
+        rows:
+          - {order_id: O1, _loaded_at: "2024-03-10 00:00:00"}
+    expect:
+      rows:
+        - {order_id: O1, customer_sk: k1, customer_state: Kerala, customer_region: South, is_cross_region: false,
+           sale_event: null, is_late: true, days_late: 2, has_timestamp_anomaly: false, approval_hours: 6.0,
+           transit_days: 6.083333333333333, source_last_loaded_at: "2024-03-10 00:00:00"}
+        - {order_id: O2, customer_sk: k2, customer_state: Delhi, customer_region: North, is_cross_region: true,
+           sale_event: Test Sale, is_late: false, days_late: 0, has_timestamp_anomaly: true, approval_hours: 24.0,
+           transit_days: null, source_last_loaded_at: "2024-06-08 00:00:00"}
