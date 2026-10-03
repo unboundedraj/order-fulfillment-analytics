@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fulfillment"
+version = "0.1.0"
+description = "Order fulfillment & delivery analytics: CDC-style data generator, incremental loader, dbt/DuckDB warehouse, Dagster orchestration and a Streamlit dashboard."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "pyarrow>=14",
+    "duckdb>=1.0",
+    "dbt-core>=1.8",
+    "dbt-duckdb>=1.8",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+orchestration = ["dagster>=1.8", "dagster-dbt>=0.24", "dagster-webserver>=1.8"]
+dashboard = ["streamlit>=1.35", "plotly>=5.20"]
+dev = ["pytest>=8", "ruff>=0.5", "sqlfluff>=3.0", "sqlfluff-templater-dbt>=3.0"]
+
+[project.scripts]
+fulfillment = "fulfillment.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.dagster]
+module_name = "fulfillment.orchestration.definitions"
+code_location_name = "fulfillment"
