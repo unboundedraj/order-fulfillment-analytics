@@ -3,10 +3,11 @@
 -- (INR 49 below INR 499, free above).
 --
 -- Only orders delivered more than `settlement_days` before the newest delivery are
--- checked. Near the cut-off, a refund can legitimately land before the late-arriving
--- 'returned' status that explains it (CDC rows arrive up to 3 days late), so
--- reconciling in-flight orders would raise false alarms.
-{% set settlement_days = 14 %}
+-- checked. Until an order is settled, a refund can legitimately land before the
+-- late-arriving 'returned' status that explains it, so reconciling in-flight orders
+-- would raise false alarms. Settlement = return window (12 d) + max CDC lateness (3 d)
+-- + refund lag (1 d), rounded up.
+{% set settlement_days = 21 %}
 
 with cutoff as (
     select max(delivered_at) - interval {{ settlement_days }} day as settled_before
