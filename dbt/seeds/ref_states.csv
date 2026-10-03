@@ -1,0 +1,34 @@
+state,state_code,region,remoteness_tier
+Maharashtra,MH,West,1
+Karnataka,KA,South,1
+Delhi,DL,North,1
+Tamil Nadu,TN,South,1
+Uttar Pradesh,UP,North,2
+Telangana,TS,South,1
+Gujarat,GJ,West,1
+West Bengal,WB,East,2
+Haryana,HR,North,1
+Rajasthan,RJ,North,2
+Kerala,KL,South,2
+Andhra Pradesh,AP,South,2
+Madhya Pradesh,MP,Central,2
+Punjab,PB,North,2
+Bihar,BR,East,3
+Odisha,OD,East,2
+Assam,AS,North-East,3
+Jharkhand,JH,East,3
+Chhattisgarh,CG,Central,2
+Uttarakhand,UK,North,2
+Jammu and Kashmir,JK,North,3
+Himachal Pradesh,HP,North,3
+Goa,GA,West,1
+Chandigarh,CH,North,1
+Puducherry,PY,South,2
+Tripura,TR,North-East,3
+Meghalaya,ML,North-East,3
+Manipur,MN,North-East,3
+Nagaland,NL,North-East,3
+Arunachal Pradesh,AR,North-East,3
+Mizoram,MZ,North-East,3
+Sikkim,SK,North-East,3
+Ladakh,LA,North,3
