@@ -402,7 +402,9 @@ def _payments(truth, items, rng, horizon_end) -> pd.DataFrame:
             "payment_type": "charge",
             "payment_method": t.payment_method.to_numpy(),
             "amount": np.round(amount + shipping, 2),
-            "created_at": t.purchase_at.to_numpy(),
+            # pandas 3 infers coarser datetime units (e.g. seconds); pin ns so mixed
+            # assignments below never need a lossy cast.
+            "created_at": t.purchase_at.astype("datetime64[ns]").to_numpy(),
         }
     )
     # COD is collected on delivery, not at purchase
@@ -411,7 +413,7 @@ def _payments(truth, items, rng, horizon_end) -> pd.DataFrame:
     charge = charge[~cod | delivered_ok].copy()
     charge.loc[charge.payment_method.eq("COD"), "created_at"] = t.loc[
         charge.loc[charge.payment_method.eq("COD"), "order_id"], "delivered_at"
-    ].to_numpy()
+    ].astype("datetime64[ns]").to_numpy()
 
     refund_mask = (t.cancelled | t.returned | t.rto).to_numpy() & (
         t.payment_method != "COD"
